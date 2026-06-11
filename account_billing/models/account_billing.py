@@ -195,6 +195,18 @@ class AccountBilling(models.Model):
             "context": {"create": False},
         }
 
+    def _sort_billing_lines(self):
+        for billing in self:
+            sorted_lines = billing.billing_line_ids.sorted(
+                key=lambda l: (
+                    l.move_id.invoice_date or fields.Date.min,
+                    l.move_id.name or "",
+                )
+            )
+            for seq, line in enumerate(sorted_lines, start=1):
+                if line.sequence != seq:
+                    line.sequence = seq
+
     def _get_billing_line_dict(self, moves):
         billing_line_dict = [
             {
@@ -215,12 +227,15 @@ class AccountBilling(models.Model):
         moves = self._get_moves(self.threshold_date_type, types)
         billing_line_dict = self._get_billing_line_dict(moves)
         self.billing_line_ids.create(billing_line_dict)
+        self._sort_billing_lines()
 
 
 class AccountBillingLine(models.Model):
     _name = "account.billing.line"
     _description = "Billing Line"
+    _order = "sequence, id"
 
+    sequence = fields.Integer(default=10)
     billing_id = fields.Many2one(comodel_name="account.billing")
     move_id = fields.Many2one(
         comodel_name="account.move",
